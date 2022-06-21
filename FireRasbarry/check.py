@@ -1,3 +1,3 @@
-x= "  sfafafsfa---fsaffa--fas-- fs f    f f           "
-x = list(filter(lambda a: a != "", x.replace(")split(" ")))
-print(x)
+from pathlib import Path
+downloads_path = str(Path.home() / "Downloads")
+print(downloads_path.split("\\"))

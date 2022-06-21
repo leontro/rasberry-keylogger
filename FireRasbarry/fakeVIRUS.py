@@ -100,16 +100,13 @@ class MySocket:
         self.sock.connect((host, port))
 
     def send(self, data, id):
-        # sending the id of the file first
-        send_file_name = id.encode()
-        send_file_name += b' ' * (HEADER - len(send_file_name))
-        self.sock.send(send_file_name)
 
-        # sending the length of the data
-        send_length = str(len(data)).encode()
-        print(send_length)
-        send_length += b' ' * (HEADER - len(send_length))
-        self.sock.send(send_length)
+
+
+
+
+
+
 
 
         # sending the data
