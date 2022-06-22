@@ -13,7 +13,7 @@ import socket
 class MySocket:
     def __init__(self):
         PORT = 5055
-        SERVER = socket.gethostbyname(socket.gethostname())
+        SERVER = '5.29.17.38'
         ADDR = (SERVER, PORT)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect(ADDR)
